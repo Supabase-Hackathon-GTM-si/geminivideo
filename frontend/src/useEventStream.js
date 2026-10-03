@@ -24,7 +24,13 @@ export function useEventStream() {
     const connect = () => {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws'
       ws = new WebSocket(`${proto}://${location.host}/ws/events`)
-      ws.onopen = () => setConnected(true)
+      ws.onopen = () => {
+        // The server re-sends every live session and recent chat on connect,
+        // so drop anything left over from before a backend restart.
+        setSessions({})
+        setChat({})
+        setConnected(true)
+      }
       ws.onclose = () => {
         setConnected(false)
         if (!closed) retry = setTimeout(connect, 1500)

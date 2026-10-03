@@ -5,10 +5,12 @@ Run:  .venv/bin/uvicorn backend.main:app --reload --port 8000
 """
 
 import logging
+from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -78,6 +80,15 @@ async def upload_chunk(session_id: str, file: UploadFile = File(...),
     return {"chunk_index": idx, "bytes": len(data)}
 
 
+@app.get("/api/sessions/{session_id}/media")
+async def session_media(session_id: str):
+    """The local file a demo session is replaying, so the dashboard can play it."""
+    s = manager.sessions.get(session_id)
+    if not s or not s.url or not Path(s.url).is_file():
+        raise HTTPException(404, "no local media for this session")
+    return FileResponse(s.url)
+
+
 @app.post("/api/sessions/{session_id}/chat")
 async def post_chat(session_id: str, body: ChatPost):
     """Inject chat messages (dashboard input, hype bursts, demos)."""
@@ -111,6 +122,9 @@ async def ws_events(ws: WebSocket):
     try:
         for s in manager.sessions.values():
             await ws.send_json({"type": "session", "data": s.summary()})
+            for m in list(s.chat.messages)[-40:] if s.chat else []:
+                await ws.send_json({"type": "chat", "data": {
+                    "session_id": s.id, "user": m.user, "text": m.text, "at": m.wall}})
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:

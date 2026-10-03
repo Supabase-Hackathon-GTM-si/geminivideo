@@ -2,28 +2,23 @@
  * One monitored stream: live preview, a banner for Gemini's most recent flag,
  * and a strip showing the outcome of each analyzed clip.
  */
-import { useEffect, useRef, useState } from 'react'
-import { CATEGORY_LABELS, embedUrl, fmtDollars, fmtDuration, sourceLabel } from './format.js'
+import { useEffect, useState } from 'react'
+import { CATEGORY_LABELS, fmtDollars, fmtDuration, sourceLabel } from './format.js'
 import ChatPanel from './ChatPanel.jsx'
+import StreamPreview from './StreamPreview.jsx'
 import ThankYouAlert from './ThankYouAlert.jsx'
 
 const FLAG_BANNER_MS = 10000
 
 export default function StreamTile({ session, localStream, mirrored, chunks, flags, chat, alert, selected, onSelect,
                                      onStop }) {
-  const videoRef = useRef(null)
   const [now, setNow] = useState(Date.now())
-
-  useEffect(() => {
-    if (videoRef.current && localStream) videoRef.current.srcObject = localStream
-  }, [localStream])
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
 
-  const embed = session.source === 'url' ? embedUrl(session.url) : null
   const latest = flags[0]
   const showBanner = latest && now - new Date(latest.detected_at).getTime() < FLAG_BANNER_MS
   const tipped = session.tips_cents ?? flags.filter((f) => f.tipped).reduce((sum, f) => sum + f.suggested_tip_cents, 0)
@@ -32,14 +27,8 @@ export default function StreamTile({ session, localStream, mirrored, chunks, fla
 
   return (
     <div className={`tile ${selected ? 'selected' : ''} ${showBanner ? 'flashing' : ''}`} onClick={onSelect}>
-      <div className="tile-preview">
-        {localStream && <video ref={videoRef} className={mirrored ? 'mirrored' : ''} autoPlay muted playsInline />}
-        {!localStream && embed && <iframe src={embed} allow="autoplay; fullscreen" title={session.streamer_id} />}
-        {!localStream && !embed && (
-          <div className="placeholder">
-            {session.source === 'browser' ? 'Preview only in the tab that started it' : session.url}
-          </div>
-        )}
+      {/* Nothing may overlap an embed: Twitch won't autoplay a player it considers covered. */}
+      <div className="tile-top">
         <span className={`badge ${session.source_exited ? 'ended' : 'live'}`} title={session.exit_reason || ''}>
           {session.source_exited ? (session.exit_reason || 'ended').toUpperCase() : 'LIVE'}
         </span>
@@ -48,14 +37,17 @@ export default function StreamTile({ session, localStream, mirrored, chunks, fla
             ⚠ {safetyFlags.map((f) => `${f} ×${session.safety_counts[f]}`).join(', ')}
           </span>
         )}
-        <ThankYouAlert alert={alert} now={now} />
-        {showBanner && (
-          <div className="flag-banner">
-            <b>Gemini flag</b> · {CATEGORY_LABELS[latest.category] || latest.category}
-            {latest.brand && ` · ${latest.brand}`} · {Math.round(latest.confidence * 100)}%
-          </div>
-        )}
       </div>
+      <div className="tile-preview">
+        <StreamPreview session={session} localStream={localStream} mirrored={mirrored} />
+        <ThankYouAlert alert={alert} now={now} />
+      </div>
+      {showBanner && (
+        <div className="flag-banner">
+          <b>Gemini flag</b> · {CATEGORY_LABELS[latest.category] || latest.category}
+          {latest.brand && ` · ${latest.brand}`} · {Math.round(latest.confidence * 100)}%
+        </div>
+      )}
 
       <div className="tile-body">
         <div className="tile-title">

@@ -90,6 +90,7 @@ class Session:
             "demo_alerts": self.demo_alerts,
             "chat_feeds": self.chat_feeds,
             "chat_messages": len(self.chat.messages) if self.chat else 0,
+            "local_file": bool(self.url and Path(self.url).is_file()),
         }
 
 
