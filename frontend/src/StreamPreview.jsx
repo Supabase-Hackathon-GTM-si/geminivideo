@@ -2,9 +2,9 @@
  * Auto-playing preview for a stream tile.
  *
  * - Webcam / screen-share: the local MediaStream.
- * - Twitch / YouTube: the platform embed, muted so the browser allows
- *   autoplay. Twitch also refuses to autoplay embeds smaller than 400x300 on
- *   screen, which is why tiles have a 400px minimum width and a 4:3 preview.
+ * - Twitch / YouTube: the platform embed. Twitch won't autoplay embeds smaller
+ *   than 400x300 or covered by other elements, so compact Twitch tiles need a
+ *   click to start.
  * - Local files (demo replays): served by the backend and kept in sync with
  *   the analysis pipeline, which replays the file in real time from session start.
  */

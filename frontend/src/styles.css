@@ -30,22 +30,20 @@ button.stop { background: #da3633; margin-left: auto; }
 .kpis span { display: block; color: #e6edf3; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 main { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; margin-top: 16px; align-items: start; }
-/* Tiles stay >= 400px wide with a 4:3 preview: Twitch won't autoplay embeds under 400x300. */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(410px, 1fr)); gap: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
 .empty { color: #8b949e; padding: 40px; text-align: center; background: #161b22; border-radius: 8px; grid-column: 1 / -1; }
 .placeholder { color: #8b949e; font-size: 13px; padding: 12px; text-align: center; word-break: break-all; }
 
 .tile { background: #161b22; border-radius: 10px; overflow: hidden; border: 2px solid transparent; cursor: pointer; transition: border-color .2s; }
 .tile.selected { border-color: #58a6ff; }
 .tile.flashing { border-color: #3fb950; box-shadow: 0 0 0 3px #3fb95033; }
-.tile-preview { position: relative; aspect-ratio: 4 / 3; background: #000; display: flex; align-items: center; justify-content: center; }
+.tile-preview { position: relative; aspect-ratio: 16 / 9; background: #000; display: flex; align-items: center; justify-content: center; }
 .tile-preview video, .tile-preview iframe { width: 100%; height: 100%; border: 0; object-fit: contain; }
 .tile-preview video.mirrored { transform: scaleX(-1); }
-.tile-top { display: flex; gap: 8px; align-items: center; padding: 6px 8px; min-width: 0; }
-.badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.badge { position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
 .badge.live { background: #da3633; color: white; }
 .badge.ended { background: #6e7681; color: white; }
-.flag-banner { margin: 8px 12px 0; background: #238636; color: white; padding: 6px 10px; border-radius: 6px; font-size: 13px; animation: pop .3s ease-out; }
+.flag-banner { position: absolute; left: 8px; right: 8px; bottom: 8px; background: #238636ee; color: white; padding: 6px 10px; border-radius: 6px; font-size: 13px; animation: pop .3s ease-out; }
 .tile-body { padding: 10px 12px; }
 .tile-title { display: flex; gap: 8px; align-items: center; }
 .tile-title .stop { margin-left: auto; }
@@ -78,7 +76,7 @@ main { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; margin-top: 16p
 .reason { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #6e768133; color: #c9d1d9; }
 .tip.blocked, .tip.rejected_by_verifier { background: #6e768122; color: #8b949e; }
 .tip.pending_verification { background: #d2992222; color: #e3b341; }
-.badge.safety { margin-left: auto; background: #d29922; color: #0d1117; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge.safety { left: auto; right: 8px; background: #d29922; color: #0d1117; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .clip.skipped { background: #6e7681; opacity: .4; }
 .clip.unsafe { outline: 2px solid #d29922; }
 .competitor-count { color: #ff7b72; }

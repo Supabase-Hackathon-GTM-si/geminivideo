@@ -27,8 +27,8 @@ export default function StreamTile({ session, localStream, mirrored, chunks, fla
 
   return (
     <div className={`tile ${selected ? 'selected' : ''} ${showBanner ? 'flashing' : ''}`} onClick={onSelect}>
-      {/* Nothing may overlap an embed: Twitch won't autoplay a player it considers covered. */}
-      <div className="tile-top">
+      <div className="tile-preview">
+        <StreamPreview session={session} localStream={localStream} mirrored={mirrored} />
         <span className={`badge ${session.source_exited ? 'ended' : 'live'}`} title={session.exit_reason || ''}>
           {session.source_exited ? (session.exit_reason || 'ended').toUpperCase() : 'LIVE'}
         </span>
@@ -37,17 +37,14 @@ export default function StreamTile({ session, localStream, mirrored, chunks, fla
             ⚠ {safetyFlags.map((f) => `${f} ×${session.safety_counts[f]}`).join(', ')}
           </span>
         )}
-      </div>
-      <div className="tile-preview">
-        <StreamPreview session={session} localStream={localStream} mirrored={mirrored} />
         <ThankYouAlert alert={alert} now={now} />
+        {showBanner && (
+          <div className="flag-banner">
+            <b>Gemini flag</b> · {CATEGORY_LABELS[latest.category] || latest.category}
+            {latest.brand && ` · ${latest.brand}`} · {Math.round(latest.confidence * 100)}%
+          </div>
+        )}
       </div>
-      {showBanner && (
-        <div className="flag-banner">
-          <b>Gemini flag</b> · {CATEGORY_LABELS[latest.category] || latest.category}
-          {latest.brand && ` · ${latest.brand}`} · {Math.round(latest.confidence * 100)}%
-        </div>
-      )}
 
       <div className="tile-body">
         <div className="tile-title">
