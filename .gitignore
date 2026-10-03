@@ -1,0 +1,11 @@
+.env
+*.env.local
+__pycache__/
+*.pyc
+.venv/
+backend/.chunks/
+backend/events.jsonl
+backend/logs/
+node_modules/
+frontend/dist/
+.DS_Store
