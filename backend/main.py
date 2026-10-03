@@ -9,6 +9,7 @@ from typing import Literal, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import config
@@ -16,29 +17,44 @@ from .event_sink import sink
 from .session_manager import manager
 from .sources.browser_source import BrowserSource
 
+DEFAULT_CHAT_SCRIPT = config.BACKEND_DIR / "demo" / "chat_sample.json"
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 app = FastAPI(title="Livestream Beverage Detector")
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS,
                    allow_methods=["*"], allow_headers=["*"])
+config.EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/evidence", StaticFiles(directory=config.EVIDENCE_DIR), name="evidence")
 
 
 class CreateSession(BaseModel):
     source: Literal["url", "browser"]
     url: Optional[str] = None
     streamer_id: str = "demo-streamer"
+    demo_alerts: bool = False
+    chat_script: Optional[str] = None
+
+
+class ChatPost(BaseModel):
+    user: str = "viewer"
+    text: Optional[str] = None
+    messages: list[dict] = []
 
 
 @app.get("/api/health")
 async def health():
     return {"ok": True, "model": config.GEMINI_MODEL, "chunk_seconds": config.CHUNK_SECONDS,
-            "api_key_set": bool(config.GEMINI_API_KEY)}
+            "api_key_set": bool(config.GEMINI_API_KEY), "sponsor_brand": config.SPONSOR_BRAND,
+            "verify_model": config.GEMINI_VERIFY_MODEL if config.VERIFY_ENABLED else None,
+            "default_chat_script": str(DEFAULT_CHAT_SCRIPT) if DEFAULT_CHAT_SCRIPT.is_file() else None}
 
 
 @app.post("/api/sessions")
 async def create_session(body: CreateSession):
     try:
-        s = await manager.create(body.source, body.streamer_id, body.url)
+        s = await manager.create(body.source, body.streamer_id, body.url,
+                                 demo_alerts=body.demo_alerts, chat_script=body.chat_script)
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(400, str(exc))
     return s.summary()
@@ -60,6 +76,21 @@ async def upload_chunk(session_id: str, file: UploadFile = File(...),
         raise HTTPException(400, "empty chunk")
     idx = await s.source.push(data, file.content_type or "video/webm", duration)
     return {"chunk_index": idx, "bytes": len(data)}
+
+
+@app.post("/api/sessions/{session_id}/chat")
+async def post_chat(session_id: str, body: ChatPost):
+    """Inject chat messages (dashboard input, hype bursts, demos)."""
+    s = manager.sessions.get(session_id)
+    if not s or not s.chat:
+        raise HTTPException(404, "session not found")
+    msgs = body.messages or ([{"user": body.user, "text": body.text}] if body.text else [])
+    for m in msgs[:50]:
+        if m.get("text"):
+            await s.chat.add(str(m.get("user") or "viewer"), str(m["text"]))
+    if "manual" not in s.chat_feeds:
+        s.chat_feeds.append("manual")
+    return {"added": len(msgs[:50])}
 
 
 @app.delete("/api/sessions/{session_id}")

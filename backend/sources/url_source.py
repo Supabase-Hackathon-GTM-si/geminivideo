@@ -36,7 +36,7 @@ def _ffmpeg_args(input_spec: str, out_dir: Path, realtime: bool) -> list[str]:
     args += [
         "-i", input_spec,
         "-map", "0:v:0", "-map", "0:a:0?",
-        "-vf", "scale=-2:480", "-r", "15",
+        "-vf", "scale=-2:480", "-r", "5",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
         "-force_key_frames", f"expr:gte(t,n_forced*{seg})",
         "-c:a", "aac", "-b:a", "64k", "-ac", "1",
@@ -55,6 +55,7 @@ class UrlSource:
         self.out_dir = config.CHUNKS_DIR / session_id
         self.proc: asyncio.subprocess.Process | None = None
         self.task: asyncio.Task | None = None
+        self.exit_reason: str | None = None
 
     async def start(self) -> None:
         self.out_dir.mkdir(parents=True, exist_ok=True)
@@ -66,7 +67,13 @@ class UrlSource:
             streamlink = shutil.which("streamlink", path=f"{venv_bin}{os.pathsep}{os.environ.get('PATH', '')}")
             if not streamlink:
                 raise RuntimeError("streamlink not installed (pip install streamlink)")
-            sl = shlex.join([streamlink, "--stdout", "--loglevel", "error", self.url, "480p,720p,best"])
+            sl = shlex.join([
+                streamlink, "--stdout", "--loglevel", "error",
+                "--hls-live-edge", "2", "--twitch-low-latency",
+                "--retry-open", "3", "--retry-streams", "5", "--retry-max", "6",
+                "--stream-segment-threads", "2",
+                self.url, "480p,720p,best",
+            ])
             ff = shlex.join(_ffmpeg_args("pipe:0", self.out_dir, realtime=False))
             cmd = f"{sl} | {ff}"
         log.info("starting pipeline: %s", cmd)
@@ -96,6 +103,7 @@ class UrlSource:
             if done:
                 err = (await self.proc.stderr.read()).decode(errors="replace").strip() if self.proc.stderr else ""
                 log.info("pipeline exited code=%s %s", self.proc.returncode, err[-500:])
+                self.exit_reason = self._reason(self.proc.returncode, err)
                 shutil.rmtree(self.out_dir, ignore_errors=True)
                 return
             await asyncio.sleep(0.5)
@@ -112,6 +120,20 @@ class UrlSource:
             except (asyncio.TimeoutError, Exception):
                 self.task.cancel()
         shutil.rmtree(self.out_dir, ignore_errors=True)
+
+    def _reason(self, code: int | None, err: str) -> str:
+        low = err.lower()
+        if "no playable streams" in low or "offline" in low:
+            return "stream offline"
+        if "no plugin can handle" in low:
+            return "unsupported URL"
+        if code == 0 or not err:
+            return "file finished" if os.path.isfile(self.url) else "stream ended"
+        return f"error: {err.splitlines()[-1][:200]}"
+
+    async def wait_exited(self) -> None:
+        if self.task:
+            await asyncio.shield(self.task)
 
     @property
     def exited(self) -> bool:

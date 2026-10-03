@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 backend/.chunks/
 backend/events.jsonl
+backend/evidence/
 backend/logs/
 node_modules/
 frontend/dist/

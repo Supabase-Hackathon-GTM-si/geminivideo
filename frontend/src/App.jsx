@@ -6,15 +6,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useEventStream } from './useEventStream.js'
 import { startClipUploader } from './browserCapture.js'
-import { fmtDollars } from './format.js'
+import { fmtDollars, fmtDuration } from './format.js'
 import StreamTile from './StreamTile.jsx'
 import FlagFeed from './FlagFeed.jsx'
 
 export default function App() {
-  const { events, chunks, sessions, connected } = useEventStream()
+  const { events, chunks, sessions, safety, chat, alerts, connected } = useEventStream()
   const [health, setHealth] = useState(null)
   const [url, setUrl] = useState('')
   const [streamerId, setStreamerId] = useState('demo-streamer')
+  const [demoMode, setDemoMode] = useState(false)
+  const [chatScript, setChatScript] = useState('')
   const [selected, setSelected] = useState(null)
   const [error, setError] = useState('')
   // Browser-captured streams owned by this tab: id -> {stream, stopUploader}
@@ -22,14 +24,21 @@ export default function App() {
   const [, rerender] = useState(0)
 
   useEffect(() => {
-    fetch('/api/health').then((r) => r.json()).then(setHealth).catch(() => setHealth(null))
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((h) => {
+        setHealth(h)
+        if (h.default_chat_script) setChatScript(h.default_chat_script)
+      })
+      .catch(() => setHealth(null))
   }, [])
 
   async function createSession(body) {
+    const demo = demoMode ? { demo_alerts: true, chat_script: chatScript.trim() || null } : {}
     const r = await fetch('/api/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...body, streamer_id: streamerId.trim() || 'streamer' }),
+      body: JSON.stringify({ ...body, ...demo, streamer_id: streamerId.trim() || 'streamer' }),
     })
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText)
     return r.json()
@@ -54,7 +63,7 @@ export default function App() {
           : await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: true })
       const s = await createSession({ source: 'browser' })
       const stopUploader = startClipUploader(stream, s.id, health?.chunk_seconds || 10, setError)
-      local.current[s.id] = { stream, stopUploader }
+      local.current[s.id] = { stream, stopUploader, mirrored: kind === 'webcam' }
       stream.getVideoTracks()[0].addEventListener('ended', () => stop(s.id))
       rerender((n) => n + 1)
     } catch (e) {
@@ -81,7 +90,8 @@ export default function App() {
   for (const e of events) (flagsBySession[e.session_id] ||= []).push(e)
 
   const totalClips = streams.reduce((sum, s) => sum + s.chunks_analyzed, 0)
-  const totalTips = events.filter((e) => e.tipped).reduce((sum, e) => sum + e.suggested_tip_cents, 0)
+  const totalTips = events.filter((e) => e.status === 'tipped').reduce((sum, e) => sum + e.suggested_tip_cents, 0)
+  const sponsorSeconds = streams.reduce((sum, s) => sum + (s.sponsor_screen_seconds || 0), 0)
   const feedFlags = selected ? flagsBySession[selected] || [] : events
 
   return (
@@ -92,7 +102,8 @@ export default function App() {
           <span className={connected ? 'dot ok' : 'dot bad'} /> {connected ? 'connected' : 'disconnected'}
           {health && (
             <span className="muted">
-              {' '}· {health.model} · {health.chunk_seconds}s clips
+              {' '}· {health.model}{health.verify_model && ` + ${health.verify_model} verify`} · {health.chunk_seconds}s clips
+              {health.sponsor_brand && ` · sponsor: ${health.sponsor_brand}`}
               {!health.api_key_set && <b className="warn"> · GEMINI_API_KEY missing</b>}
             </span>
           )}
@@ -103,8 +114,17 @@ export default function App() {
         <div><span>{streams.length}</span>streams live</div>
         <div><span>{totalClips}</span>clips analyzed</div>
         <div><span>{events.length}</span>Gemini flags</div>
-        <div><span>{fmtDollars(totalTips)}</span>suggested tips</div>
+        <div><span>{fmtDuration(sponsorSeconds)}</span>{health?.sponsor_brand || 'sponsor'} on screen</div>
+        <div><span>{fmtDollars(totalTips)}</span>tipped</div>
       </section>
+
+      {safety.length > 0 && (
+        <section className="safety-alert">
+          <b>Brand-safety alert</b> · {safety[0].streamer_id}: {safety[0].flags.join(', ')}
+          {safety[0].notes && <span className="muted"> · {safety[0].notes}</span>}
+          {safety.length > 1 && <span className="muted"> · {safety.length - 1} earlier</span>}
+        </section>
+      )}
 
       <section className="controls">
         <input className="streamer" value={streamerId} onChange={(e) => setStreamerId(e.target.value)}
@@ -116,6 +136,14 @@ export default function App() {
         <span className="muted">or</span>
         <button onClick={() => addBrowser('webcam')}>Webcam</button>
         <button onClick={() => addBrowser('screen')}>Screen-share a tab</button>
+        <label className="demo-toggle" title="Spoken thank-you alerts + generated cards, and replay a scripted chat">
+          <input type="checkbox" checked={demoMode} onChange={(e) => setDemoMode(e.target.checked)} />
+          Demo mode
+        </label>
+        {demoMode && (
+          <input className="url" value={chatScript} onChange={(e) => setChatScript(e.target.value)}
+                 placeholder="chat script JSON (optional), e.g. backend/demo/chat_sample.json" />
+        )}
         {error && <div className="error">{error}</div>}
       </section>
 
@@ -129,8 +157,11 @@ export default function App() {
               key={s.id}
               session={s}
               localStream={local.current[s.id]?.stream}
+              mirrored={local.current[s.id]?.mirrored}
               chunks={chunksBySession[s.id] || []}
               flags={flagsBySession[s.id] || []}
+              chat={chat[s.id] || []}
+              alert={alerts[s.id]}
               selected={selected === s.id}
               onSelect={() => setSelected(selected === s.id ? null : s.id)}
               onStop={() => stop(s.id)}

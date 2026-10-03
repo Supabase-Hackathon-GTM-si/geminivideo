@@ -4,6 +4,7 @@ restarting the recorder every CHUNK_SECONDS so each upload is a standalone
 webm file, and POSTs each clip here.
 """
 
+import asyncio
 from typing import Awaitable, Callable
 
 from . import Chunk
@@ -29,6 +30,13 @@ class BrowserSource:
     async def stop(self) -> None:
         pass
 
+    async def wait_exited(self) -> None:
+        await asyncio.Event().wait()
+
     @property
     def exited(self) -> bool:
         return False
+
+    @property
+    def exit_reason(self) -> None:
+        return None

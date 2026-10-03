@@ -4,6 +4,34 @@ export const CATEGORY_LABELS = {
   drinking_other: 'Drinking (other)',
   holding_or_showing_beverage: 'Showing a beverage',
   verbal_beverage_mention: 'Talks about drinks',
+  sponsor_screen_time: 'Sponsor screen time',
+}
+
+export const STATUS_LABELS = {
+  tipped: 'tipped',
+  blocked: 'blocked',
+  pending_verification: 'verifying…',
+  rejected_by_verifier: 'rejected by verifier',
+}
+
+export const SUBJECT_LABELS = {
+  real_person: 'real person',
+  animated_character: 'animated',
+  video_playback: 'video playback',
+}
+
+export function reasonLabel(r) {
+  const [kind, value] = r.split(':')
+  if (kind === 'safety') return `unsafe: ${value}`
+  if (kind === 'sentiment') return `${value} sentiment`
+  if (kind === 'subject') return SUBJECT_LABELS[value] || value
+  return r.replaceAll('_', ' ')
+}
+
+export function fmtDuration(s) {
+  const total = Math.round(s)
+  const m = Math.floor(total / 60)
+  return m ? `${m}m ${total % 60}s` : `${total}s`
 }
 
 export function embedUrl(url) {

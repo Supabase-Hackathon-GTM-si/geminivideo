@@ -30,7 +30,8 @@ class EventSink:
 
     async def broadcast(self, msg: dict[str, Any]) -> None:
         if msg["type"] == "event":
-            self.recent = (self.recent + [msg])[-200:]
+            event_id = msg["data"]["event_id"]
+            self.recent = ([m for m in self.recent if m["data"]["event_id"] != event_id] + [msg])[-200:]
         text = json.dumps(msg)
         dead = []
         for ws in self.sockets:
